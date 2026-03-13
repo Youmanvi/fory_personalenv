@@ -152,21 +152,10 @@ func (w *RowWriter) WriteBinary(fieldIdx int, v []byte) {
 	w.writeVarSlot(fieldIdx, v)
 }
 
-// WriteArray writes the serialized array into the variable-length region of the row
-// and stores (relativeOffset<<32)|size in fieldIdx's slot.
-func (w *RowWriter) WriteArray(fieldIdx int, aw *ArrayWriter) {
-	w.writeVarSlot(fieldIdx, aw.Bytes())
-}
-
 // WriteNestedRow serializes child and embeds its bytes in the variable-length region.
 // Per ADR-3: the child's buffer is copied into the parent's variable region.
 func (w *RowWriter) WriteNestedRow(fieldIdx int, child *RowWriter) {
 	w.writeVarSlot(fieldIdx, child.Bytes())
-}
-
-// WriteMap writes the serialized map into the variable-length region of the row.
-func (w *RowWriter) WriteMap(fieldIdx int, mw *MapWriter) {
-	w.writeVarSlot(fieldIdx, mw.Bytes())
 }
 
 // Bytes returns the complete serialized row. The slice is valid until the next write.

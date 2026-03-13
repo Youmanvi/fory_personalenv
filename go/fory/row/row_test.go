@@ -28,15 +28,6 @@ import (
 // javaGoldenNullHex is the Java golden hex for {id=1, value=null} (null-field cross-language test).
 const javaGoldenNullHex = "020000000000000001000000000000000000000000000000"
 
-// javaGoldenArrayHex is the Java golden hex for {id=7, scores=[10,20,30]} (array cross-language test).
-const javaGoldenArrayHex = "000000000000000007000000000000002800000018000000" +
-	"030000000000000000000000000000000a00000000000000" +
-	"14000000000000001e00000000000000"
-
-// javaGoldenMapHex is the Java golden hex for {id=1, config={"a":100}} (map cross-language test).
-const javaGoldenMapHex = "00000000000000000100000000000000400000001800000020000000000000000100000000000000" +
-	"000000000000000001000000180000006100000000000000" +
-	"010000000000000000000000000000006400000000000000"
 
 // javaGoldenHex is the Java golden hex for {id=42, name="Alice"} (basic cross-language test).
 const javaGoldenHex = "00000000000000002a000000000000000500000018000000416c696365000000"
@@ -293,72 +284,6 @@ func TestGoldenDecodeNull(t *testing.T) {
 	require.Equal(t, int64(1), r.ReadInt64(0))
 }
 
-// TestGoldenEncodeArray verifies the Go encoder matches Java for a row with a fixed int64 array.
-func TestGoldenEncodeArray(t *testing.T) {
-	w := NewRowWriter(2, 48)
-	w.WriteInt64(0, 7)
-	aw := NewFixedArrayWriter(3, 8)
-	aw.WriteInt64(0, 10)
-	aw.WriteInt64(1, 20)
-	aw.WriteInt64(2, 30)
-	w.WriteArray(1, aw)
-
-	got := hex.EncodeToString(w.Bytes())
-	require.Equal(t, javaGoldenArrayHex, got,
-		"Go array encoding does not match Java golden — check array header or element layout")
-}
-
-// TestGoldenDecodeArray parses javaGoldenArrayHex and reads the scores array.
-func TestGoldenDecodeArray(t *testing.T) {
-	raw, err := hex.DecodeString(javaGoldenArrayHex)
-	require.NoError(t, err)
-
-	r := NewRowReader(raw, 2)
-	require.Equal(t, int64(7), r.ReadInt64(0))
-
-	ar := r.ReadFixedArray(1, 8)
-	require.Equal(t, 3, ar.Len())
-	require.Equal(t, int64(10), ar.ReadInt64(0))
-	require.Equal(t, int64(20), ar.ReadInt64(1))
-	require.Equal(t, int64(30), ar.ReadInt64(2))
-}
-
-// TestGoldenEncodeMap verifies the Go encoder matches Java for a row with a string→int64 map.
-func TestGoldenEncodeMap(t *testing.T) {
-	keys := NewVarArrayWriter(1, 16)
-	keys.WriteString(0, "a")
-
-	vals := NewFixedArrayWriter(1, 8)
-	vals.WriteInt64(0, 100)
-
-	mw := NewMapWriter(keys, vals)
-
-	w := NewRowWriter(2, 96)
-	w.WriteInt64(0, 1)
-	w.WriteMap(1, mw)
-
-	got := hex.EncodeToString(w.Bytes())
-	require.Equal(t, javaGoldenMapHex, got,
-		"Go map encoding does not match Java golden — check keysSize prefix or array slot encoding")
-}
-
-// TestGoldenDecodeMap parses javaGoldenMapHex and reads the config map.
-func TestGoldenDecodeMap(t *testing.T) {
-	raw, err := hex.DecodeString(javaGoldenMapHex)
-	require.NoError(t, err)
-
-	r := NewRowReader(raw, 2)
-	require.Equal(t, int64(1), r.ReadInt64(0))
-
-	mr := r.ReadMap(1)
-	kr := mr.KeysVarArray()
-	vr := mr.ValuesFixedArray(8)
-
-	require.Equal(t, 1, kr.Len())
-	require.Equal(t, "a", kr.ReadString(0))
-	require.Equal(t, 1, vr.Len())
-	require.Equal(t, int64(100), vr.ReadInt64(0))
-}
 
 // TestNullSlotIsZero verifies that a null field's slot bytes are zero.
 func TestNullSlotIsZero(t *testing.T) {
@@ -474,46 +399,3 @@ func TestNestedRowNullField(t *testing.T) {
 	require.True(t, cr.IsNull(1))
 }
 
-// TestMapEmptyArrays verifies a map with zero-element key and value arrays round-trips cleanly.
-func TestMapEmptyArrays(t *testing.T) {
-	keys := NewFixedArrayWriter(0, 8)
-	vals := NewFixedArrayWriter(0, 8)
-	mw := NewMapWriter(keys, vals)
-
-	mr := NewMapReader(mw.Bytes())
-	kr := mr.KeysFixedArray(8)
-	vr := mr.ValuesFixedArray(8)
-	require.Equal(t, 0, kr.Len())
-	require.Equal(t, 0, vr.Len())
-}
-
-// TestMapInRowRoundtrip verifies a map embedded in a row survives encode→decode intact.
-func TestMapInRowRoundtrip(t *testing.T) {
-	keys := NewVarArrayWriter(3, 32)
-	keys.WriteString(0, "alpha")
-	keys.WriteString(1, "beta")
-	keys.WriteString(2, "gamma")
-
-	vals := NewFixedArrayWriter(3, 8)
-	vals.WriteInt64(0, -1)
-	vals.WriteInt64(1, 0)
-	vals.WriteInt64(2, math.MaxInt64)
-
-	rw := NewRowWriter(2, 128)
-	rw.WriteInt64(0, 42)
-	rw.WriteMap(1, NewMapWriter(keys, vals))
-
-	rr := NewRowReader(rw.Bytes(), 2)
-	require.Equal(t, int64(42), rr.ReadInt64(0))
-
-	mr := rr.ReadMap(1)
-	kr := mr.KeysVarArray()
-	vr := mr.ValuesFixedArray(8)
-
-	require.Equal(t, "alpha", kr.ReadString(0))
-	require.Equal(t, "beta", kr.ReadString(1))
-	require.Equal(t, "gamma", kr.ReadString(2))
-	require.Equal(t, int64(-1), vr.ReadInt64(0))
-	require.Equal(t, int64(0), vr.ReadInt64(1))
-	require.Equal(t, int64(math.MaxInt64), vr.ReadInt64(2))
-}

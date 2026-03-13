@@ -20,7 +20,6 @@
 package org.apache.fory.format.row.binary;
 
 import java.util.Arrays;
-import org.apache.fory.format.row.binary.writer.BinaryArrayWriter;
 import org.apache.fory.format.row.binary.writer.BinaryRowWriter;
 import org.apache.fory.format.type.DataTypes;
 import org.apache.fory.format.type.Schema;
@@ -90,88 +89,4 @@ public class BinaryRowCrossLangTest {
         "Java null golden bytes changed — update javaGoldenNullHex in go/fory/row/row_test.go");
   }
 
-  // Generates the canonical golden hex for {id=7, scores=[10,20,30]} (array cross-language test).
-  @Test
-  public void testGoldenArray() {
-    Schema schema =
-        new Schema(
-            Arrays.asList(
-                DataTypes.field("id", DataTypes.int64(), false),
-                DataTypes.primitiveArrayField("scores", DataTypes.int64())));
-
-    BinaryRowWriter w = new BinaryRowWriter(schema);
-    w.reset();
-    w.write(0, 7L);
-
-    BinaryArrayWriter aw = new BinaryArrayWriter(DataTypes.primitiveArrayField(DataTypes.int64()));
-    aw.reset(3);
-    aw.write(0, 10L);
-    aw.write(1, 20L);
-    aw.write(2, 30L);
-    w.write(1, aw.toArray());
-
-    BinaryRow row = w.getRow();
-    byte[] bytes = row.toBytes();
-    StringBuilder sb = new StringBuilder();
-    for (byte b : bytes) {
-      sb.append(String.format("%02x", b));
-    }
-    String hex = sb.toString();
-    System.out.println("Golden array hex: " + hex);
-
-    Assert.assertEquals(
-        hex,
-        "000000000000000007000000000000002800000018000000"
-            + "030000000000000000000000000000000a00000000000000"
-            + "14000000000000001e00000000000000",
-        "Java array golden bytes changed — update javaGoldenArrayHex in go/fory/row/row_test.go");
-  }
-
-  // Generates the canonical golden hex for {id=1, config={"a":100}} (map cross-language test).
-  @Test
-  public void testGoldenMap() {
-    Schema schema =
-        new Schema(
-            Arrays.asList(
-                DataTypes.field("id", DataTypes.int64(), false),
-                DataTypes.mapField("config", DataTypes.utf8(), DataTypes.int64())));
-
-    BinaryRowWriter w = new BinaryRowWriter(schema);
-    w.reset();
-    w.write(0, 1L);
-
-    // Inline map write: 8-byte keys-array-size prefix, then keys array, then values array.
-    int mapOffset = w.writerIndex();
-    w.writeDirectly(-1); // 8-byte placeholder for keysArraySize
-
-    BinaryArrayWriter keysWriter =
-        new BinaryArrayWriter(DataTypes.arrayField(DataTypes.utf8()), w);
-    keysWriter.reset(1);
-    keysWriter.write(0, "a");
-    w.writeDirectly(mapOffset, (long) keysWriter.size()); // fill keysArraySize
-
-    BinaryArrayWriter valuesWriter =
-        new BinaryArrayWriter(DataTypes.primitiveArrayField(DataTypes.int64()), w);
-    valuesWriter.reset(1);
-    valuesWriter.write(0, 100L);
-
-    int mapSize = w.writerIndex() - mapOffset;
-    w.setNotNullAt(1);
-    w.setOffsetAndSize(1, mapOffset, mapSize);
-
-    BinaryRow row = w.getRow();
-    byte[] bytes = row.toBytes();
-    StringBuilder sb = new StringBuilder();
-    for (byte b : bytes) {
-      sb.append(String.format("%02x", b));
-    }
-    String hex = sb.toString();
-    System.out.println("Golden map hex: " + hex);
-
-    Assert.assertEquals(
-        hex,
-        "00000000000000000100000000000000400000001800000020000000000000000100000000000000"
-            + "000000000000000001000000180000006100000000000000010000000000000000000000000000006400000000000000",
-        "Java map golden bytes changed — update javaGoldenMapHex in go/fory/row/row_test.go");
-  }
 }

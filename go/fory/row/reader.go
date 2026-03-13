@@ -124,19 +124,6 @@ func (r *RowReader) ReadBinary(fieldIdx int) []byte {
 	return r.buf[relOffset : relOffset+size]
 }
 
-// ReadFixedArray returns an ArrayReader for the fixed-width array stored in fieldIdx.
-// elemSize must match the width used when writing (1, 2, 4, or 8).
-func (r *RowReader) ReadFixedArray(fieldIdx, elemSize int) *ArrayReader {
-	relOffset, size := r.readVarSlot(fieldIdx)
-	return NewFixedArrayReader(r.buf[relOffset:relOffset+size], elemSize)
-}
-
-// ReadVarArray returns an ArrayReader for the variable-width array (string/binary) stored in fieldIdx.
-func (r *RowReader) ReadVarArray(fieldIdx int) *ArrayReader {
-	relOffset, size := r.readVarSlot(fieldIdx)
-	return NewVarArrayReader(r.buf[relOffset : relOffset+size])
-}
-
 // ReadNestedRow returns a RowReader for the nested row stored in fieldIdx.
 // numFields must match the field count of the nested schema.
 func (r *RowReader) ReadNestedRow(fieldIdx, numFields int) *RowReader {
@@ -144,8 +131,3 @@ func (r *RowReader) ReadNestedRow(fieldIdx, numFields int) *RowReader {
 	return NewRowReader(r.buf[relOffset:relOffset+size], numFields)
 }
 
-// ReadMap returns a MapReader for the map stored in fieldIdx.
-func (r *RowReader) ReadMap(fieldIdx int) *MapReader {
-	relOffset, size := r.readVarSlot(fieldIdx)
-	return NewMapReader(r.buf[relOffset : relOffset+size])
-}
